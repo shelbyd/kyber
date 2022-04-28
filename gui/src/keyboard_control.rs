@@ -4,7 +4,6 @@ use std::collections::*;
 pub struct KeyboardControl<A> {
     map: HashMap<String, A>,
     history: String,
-    expected_text: Option<String>,
 }
 
 impl<A: Clone> KeyboardControl<A> {
@@ -12,29 +11,17 @@ impl<A: Clone> KeyboardControl<A> {
         Self {
             map: map.into_iter().map(|(k, v)| (k.to_string(), v)).collect(),
             history: String::new(),
-            expected_text: None,
         }
     }
 
-    pub fn on_key(&mut self, key: Key, modifiers: Modifiers) {
-        debug_assert_eq!(self.expected_text, None);
-
+    pub fn on_key(&mut self, key: Key, _modifiers: Modifiers) {
         let as_str = format!("{:?}", key);
         if as_str.len() > 1 {
             self.history += &format!("<{}>", as_str);
-        } else if modifiers.shift_only() {
-            self.expected_text = Some(as_str);
-        } else {
-            self.expected_text = Some(as_str.to_lowercase());
         };
     }
 
     pub fn on_text(&mut self, text: &str) {
-        if let Some(t) = &self.expected_text {
-            debug_assert_eq!(t, text);
-        }
-        self.expected_text = None;
-
         self.history += text;
     }
 
