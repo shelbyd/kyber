@@ -1,5 +1,5 @@
 use eframe::{egui::*, epi};
-use std::{cmp::*, collections::*, path::*, sync::mpsc::*};
+use std::{cmp::*, collections::*, path::*};
 
 pub mod background;
 
@@ -131,40 +131,32 @@ mod state {
 
     pub struct ChooseFile {
         search: String,
-        files: Vec<PathBuf>,
-        file_rx: Receiver<PathBuf>,
+        files_job: background::IncrementalLoad<PathBuf>,
         selected: usize,
     }
 
     impl ChooseFile {
         pub fn begin() -> Self {
-            let (tx, rx) = channel();
-
-            std::thread::spawn(move || {
-                let result = ignore::Walk::new(".")
+            let files_job = background::IncrementalLoad::new(|| {
+                ignore::Walk::new(".")
                     .filter_map(|e| {
                         let path = e.ok()?.into_path();
                         let without_leading = path.strip_prefix("./").ok()?;
                         Some(without_leading.to_path_buf())
                     })
                     .filter(|p| p.is_file())
-                    .try_for_each(|p| tx.send(p));
-                if let Err(e) = result {
-                    log::error!("{}", e);
-                }
             });
 
             ChooseFile {
                 search: String::new(),
-                files: Vec::new(),
-                file_rx: rx,
+                files_job,
                 selected: 0,
             }
         }
 
         pub fn ui(&mut self, ui: &mut Ui) -> Option<FileResult> {
             let files = SortedByKey::new(
-                self.files.iter().filter_map(|p| {
+                self.files_job.current().iter().filter_map(|p| {
                     if self.search.is_empty() {
                         return Some((p, 0));
                     }
@@ -202,13 +194,6 @@ mod state {
                     ui.colored_label(Color32::BLACK, file);
                 } else {
                     ui.label(file);
-                }
-            }
-
-            loop {
-                match self.file_rx.try_recv() {
-                    Ok(f) => self.files.push(f),
-                    Err(_) => break,
                 }
             }
 
