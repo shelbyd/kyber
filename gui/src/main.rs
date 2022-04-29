@@ -1,5 +1,5 @@
 use eframe::{egui::*, epi};
-use std::{path::*, sync::mpsc::*};
+use std::{cmp::*, collections::*, path::*, sync::mpsc::*};
 
 mod keyboard_control;
 use keyboard_control::*;
@@ -50,13 +50,18 @@ impl epi::App for App {
             ui.heading("Hello World!");
 
             if let Some(choose_file) = &mut self.choose_file {
-                match state::ui_choose_file(ui, choose_file) {
+                let result = Window::new("Choose file")
+                    .anchor(Align2::CENTER_TOP, [0., 10.])
+                    .show(ctx, |ui| choose_file.ui(ui))
+                    .and_then(|r| r.inner?);
+
+                match result {
                     None => {}
                     Some(state::FileResult::Close) => {
                         self.choose_file = None;
                     }
                     Some(state::FileResult::Selected(path)) => {
-                        log::info!("{:?}", path);
+                        log::info!("Would open file: {:?}", path);
                         self.choose_file = None;
                     }
                 }
@@ -88,8 +93,7 @@ impl App {
         while let Some(a) = self.keyboard_control.take() {
             match a {
                 Action::BeginOpenFile => {
-                    let choose_file = state::ChooseFile::begin(ctx);
-                    self.choose_file = Some(choose_file);
+                    self.choose_file = Some(state::ChooseFile::begin());
                 }
                 unhandled => {
                     log::info!("Unhandled action: {:?}", unhandled);
@@ -125,19 +129,21 @@ mod state {
     }
 
     impl ChooseFile {
-        pub fn begin(ctx: &Context) -> Self {
+        pub fn begin() -> Self {
             let (tx, rx) = channel();
 
-            let ctx = ctx.clone();
             std::thread::spawn(move || {
-                ignore::Walk::new(".")
-                    .filter_map(|e| e.ok())
-                    .map(|e| e.into_path())
+                let result = ignore::Walk::new(".")
+                    .filter_map(|e| {
+                        let path = e.ok()?.into_path();
+                        let without_leading = path.strip_prefix("./").ok()?;
+                        Some(without_leading.to_path_buf())
+                    })
                     .filter(|p| p.is_file())
-                    .for_each(|p| {
-                        let _ = tx.send(p);
-                        ctx.request_repaint();
-                    });
+                    .try_for_each(|p| tx.send(p));
+                if let Err(e) = result {
+                    log::error!("{}", e);
+                }
             });
 
             ChooseFile {
@@ -147,64 +153,130 @@ mod state {
                 selected: 0,
             }
         }
+
+        pub fn ui(&mut self, ui: &mut Ui) -> Option<FileResult> {
+            let files = SortedByKey::new(
+                self.files.iter().filter_map(|p| {
+                    if self.search.is_empty() {
+                        return Some((p, 0));
+                    }
+
+                    let match_ = sublime_fuzzy::best_match(&self.search, &p.to_string_lossy())?;
+                    Some((p, match_.score()))
+                }),
+                |(_, i)| *i,
+            )
+            .map(|(p, _)| p)
+            .take(4)
+            .collect::<Vec<_>>();
+
+            if ui.ctx().input().key_pressed(Key::ArrowDown) {
+                self.selected += 1;
+            }
+            if ui.ctx().input().key_pressed(Key::ArrowUp) {
+                self.selected = self.selected.saturating_sub(1);
+            }
+            self.selected = self.selected.clamp(0, files.len().saturating_sub(1));
+
+            let text_input = ui.text_edit_singleline(&mut self.search);
+            if text_input.lost_focus() {
+                if ui.ctx().input().key_pressed(Key::Enter) {
+                    return Some(FileResult::Selected(files[self.selected].to_path_buf()));
+                }
+                return Some(FileResult::Close);
+            }
+            text_input.request_focus();
+
+            for (i, file) in files.iter().enumerate() {
+                let file = file.to_string_lossy();
+                let file = file.as_ref();
+                if self.selected == i {
+                    ui.colored_label(Color32::BLACK, file);
+                } else {
+                    ui.label(file);
+                }
+            }
+
+            loop {
+                match self.file_rx.try_recv() {
+                    Ok(f) => self.files.push(f),
+                    Err(_) => break,
+                }
+            }
+
+            None
+        }
     }
 
     pub enum FileResult {
         Close,
         Selected(PathBuf),
     }
+}
 
-    pub fn ui_choose_file(ui: &mut Ui, choose_file: &mut ChooseFile) -> Option<FileResult> {
-        use fuzzy_matcher::FuzzyMatcher;
-        let matcher = fuzzy_matcher::skim::SkimMatcherV2::default();
+struct SortedByKey<T, K> {
+    heap: BinaryHeap<Reverse<Keyed<T, K>>>,
+}
 
-        let files = choose_file
-            .files
-            .iter()
-            .filter(|p| {
-                matcher
-                    .fuzzy_match(&p.to_string_lossy(), &choose_file.search)
-                    .is_some()
+impl<T, K> SortedByKey<T, K>
+where
+    K: Ord,
+{
+    fn new(iter: impl IntoIterator<Item = T>, mut key_extractor: impl FnMut(&T) -> K) -> Self {
+        let heap = iter
+            .into_iter()
+            .map(|t| {
+                Reverse(Keyed {
+                    key: key_extractor(&t),
+                    value: t,
+                })
             })
-            .take(4)
-            .collect::<Vec<_>>();
+            .collect();
+        SortedByKey { heap }
+    }
+}
 
-        if ui.ctx().input().key_pressed(Key::ArrowDown) {
-            choose_file.selected += 1;
-        }
-        if ui.ctx().input().key_pressed(Key::ArrowUp) {
-            choose_file.selected = choose_file.selected.saturating_sub(1);
-        }
-        choose_file.selected = choose_file.selected.clamp(0, files.len().saturating_sub(1));
+impl<T, K> Iterator for SortedByKey<T, K>
+where
+    K: Ord,
+{
+    type Item = T;
 
-        let text_input = ui.text_edit_singleline(&mut choose_file.search);
-        if text_input.lost_focus() {
-            if ui.ctx().input().key_pressed(Key::Enter) {
-                return Some(FileResult::Selected(
-                    files[choose_file.selected].to_path_buf(),
-                ));
-            }
-            return Some(FileResult::Close);
-        }
-        text_input.request_focus();
+    fn next(&mut self) -> Option<T> {
+        self.heap.pop().map(|keyed| keyed.0.value)
+    }
+}
 
-        for (i, file) in files.iter().enumerate() {
-            let file = file.to_string_lossy();
-            let file = file.as_ref();
-            if choose_file.selected == i {
-                ui.colored_label(Color32::BLACK, file);
-            } else {
-                ui.label(file);
-            }
-        }
+struct Keyed<T, K> {
+    value: T,
+    key: K,
+}
 
-        loop {
-            match choose_file.file_rx.try_recv() {
-                Ok(f) => choose_file.files.push(f),
-                Err(_) => break,
-            }
-        }
+impl<T, K> PartialEq for Keyed<T, K>
+where
+    K: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
 
-        None
+impl<T, K> Eq for Keyed<T, K> where K: Eq {}
+
+impl<T, K> PartialOrd for Keyed<T, K>
+where
+    K: PartialOrd,
+{
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.key.partial_cmp(&other.key)
+    }
+}
+
+impl<T, K> Ord for Keyed<T, K>
+where
+    K: Ord,
+{
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.key.cmp(&other.key)
     }
 }
