@@ -1,8 +1,13 @@
 use eframe::{egui::*, epi};
 use std::{cmp::*, collections::*, path::*, sync::mpsc::*};
 
+pub mod background;
+
 mod keyboard_control;
 use keyboard_control::*;
+
+mod screens;
+use screens::*;
 
 fn main() {
     simple_logger::SimpleLogger::new()
@@ -16,6 +21,7 @@ fn main() {
 }
 
 struct App {
+    screen: Box<dyn Screen>,
     choose_file: Option<state::ChooseFile>,
     keyboard_control: KeyboardControl<Action>,
 }
@@ -32,6 +38,7 @@ impl Default for App {
 
                 "of" => Action::BeginOpenFile,
             }),
+            screen: Box::new(screens::Home::default()),
         }
     }
 }
@@ -47,8 +54,6 @@ impl epi::App for App {
         }
 
         CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Hello World!");
-
             if let Some(choose_file) = &mut self.choose_file {
                 let result = Window::new("Choose file")
                     .anchor(Align2::CENTER_TOP, [0., 10.])
@@ -61,11 +66,14 @@ impl epi::App for App {
                         self.choose_file = None;
                     }
                     Some(state::FileResult::Selected(path)) => {
-                        log::info!("Would open file: {:?}", path);
+                        log::info!("Opening file: {:?}", path);
                         self.choose_file = None;
+                        self.screen = Box::new(screens::File::with_path(path));
                     }
                 }
             }
+
+            self.screen.ui(ui);
         });
     }
 }
