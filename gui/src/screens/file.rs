@@ -3,7 +3,7 @@ use super::*;
 use eframe::egui::{containers::*, text::*, *};
 use std::path::*;
 
-use crate::{background::*, cursor::*};
+use crate::{background::*, cursor::*, Direction};
 
 pub struct File {
     path: PathBuf,
@@ -58,5 +58,11 @@ impl Screen for File {
         layout_job.append(post, 0.0, normal_format);
 
         ScrollArea::both().show(ui, |ui| ui.label(layout_job));
+    }
+
+    fn move_cursor(&mut self, direction: Direction) {
+        self.cursor.do_move(direction);
+        // TODO(shelbyd): Scroll text to keep cursor on screen.
+        // TODO(shelbyd): Show cursor on blank line.
     }
 }

@@ -104,9 +104,13 @@ impl App {
         }
 
         while let Some(a) = self.keyboard_control.take() {
+            #[allow(unreachable_patterns)]
             match a {
                 Action::BeginOpenFile => {
                     self.choose_file = Some(state::ChooseFile::begin());
+                }
+                Action::Cursor(direction) => {
+                    self.screen.move_cursor(direction);
                 }
                 unhandled => {
                     log::info!("Unhandled action: {:?}", unhandled);
@@ -124,7 +128,7 @@ enum Action {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Direction {
+pub enum Direction {
     Up,
     Down,
     Left,
