@@ -53,28 +53,32 @@ impl epi::App for App {
             self.handle_actions(ctx);
         }
 
-        CentralPanel::default().show(ctx, |ui| {
-            if let Some(choose_file) = &mut self.choose_file {
-                let result = Window::new("Choose file")
-                    .anchor(Align2::CENTER_TOP, [0., 10.])
-                    .show(ctx, |ui| choose_file.ui(ui))
-                    .and_then(|r| r.inner?);
+        CentralPanel::default()
+            .frame(Frame::none())
+            .show(ctx, |ui| {
+                ui.set_width(ui.available_width());
 
-                match result {
-                    None => {}
-                    Some(state::FileResult::Close) => {
-                        self.choose_file = None;
-                    }
-                    Some(state::FileResult::Selected(path)) => {
-                        log::info!("Opening file: {:?}", path);
-                        self.choose_file = None;
-                        self.screen = Box::new(screens::File::with_path(path));
+                if let Some(choose_file) = &mut self.choose_file {
+                    let result = Window::new("Choose file")
+                        .anchor(Align2::CENTER_TOP, [0., 10.])
+                        .show(ctx, |ui| choose_file.ui(ui))
+                        .and_then(|r| r.inner?);
+
+                    match result {
+                        None => {}
+                        Some(state::FileResult::Close) => {
+                            self.choose_file = None;
+                        }
+                        Some(state::FileResult::Selected(path)) => {
+                            log::info!("Opening file: {:?}", path);
+                            self.choose_file = None;
+                            self.screen = Box::new(screens::File::with_path(path));
+                        }
                     }
                 }
-            }
 
-            self.screen.ui(ui);
-        });
+                self.screen.ui(ui);
+            });
     }
 }
 

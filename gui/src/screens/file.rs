@@ -1,6 +1,6 @@
 use super::*;
 
-use eframe::egui::*;
+use eframe::egui::{containers::*, *};
 use std::path::*;
 
 use crate::background::*;
@@ -21,9 +21,20 @@ impl File {
 
 impl Screen for File {
     fn ui(&mut self, ui: &mut Ui) {
-        match self.contents.value() {
-            Some(contents) => ui.code(contents),
-            None => ui.heading(format!("Loading {}", self.path.to_string_lossy())),
+        let contents = match self.contents.value() {
+            Some(contents) => contents,
+            None => {
+                ui.heading(format!("Loading {}", self.path.to_string_lossy()));
+                return;
+            }
         };
+
+        ScrollArea::both().show(ui, |ui| {
+            ui.label(
+                RichText::new(contents)
+                    .monospace()
+                    .background_color(Color32::TRANSPARENT),
+            );
+        });
     }
 }
