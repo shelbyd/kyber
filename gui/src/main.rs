@@ -2,6 +2,7 @@ use eframe::{egui::*, epi};
 use std::{cmp::*, collections::*, path::*};
 
 pub mod background;
+pub mod cursor;
 
 mod keyboard_control;
 use keyboard_control::*;
