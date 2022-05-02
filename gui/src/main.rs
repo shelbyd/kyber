@@ -1,5 +1,6 @@
 use eframe::{egui::*, epi};
 use std::{cmp::*, collections::*, path::*};
+use structopt::StructOpt;
 
 pub mod background;
 pub mod cursor;
@@ -10,6 +11,11 @@ use keyboard_control::*;
 mod screens;
 use screens::*;
 
+#[derive(StructOpt, Debug)]
+struct CmdLineOptions {
+    path: Option<PathBuf>,
+}
+
 fn main() {
     simple_logger::SimpleLogger::new()
         .env()
@@ -17,7 +23,12 @@ fn main() {
         .init()
         .unwrap();
 
-    let app = App::default();
+    let opts = dbg!(CmdLineOptions::from_args());
+
+    let app = opts
+        .path
+        .map(|p| App::on_screen(screens::File::with_path(p)))
+        .unwrap_or_default();
     eframe::run_native(Box::new(app), eframe::NativeOptions::default());
 }
 
@@ -84,6 +95,13 @@ impl epi::App for App {
 }
 
 impl App {
+    fn on_screen(s: impl Screen + 'static) -> Self {
+        App {
+            screen: Box::new(s),
+            ..Default::default()
+        }
+    }
+
     fn handle_actions(&mut self, ctx: &Context) {
         for event in &ctx.input().events {
             match event {
