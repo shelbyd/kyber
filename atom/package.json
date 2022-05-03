@@ -1,18 +1,20 @@
 {
   "name": "kyber",
-  "main": "./lib/kyber",
+  "main": "./lib/main",
   "version": "0.0.0",
   "description": "A short description of your package",
-  "keywords": [
-  ],
+  "keywords": [],
   "activationCommands": {
     "atom-workspace": "kyber:toggle"
   },
-  "repository": "https://github.com/atom/kyber",
+  "repository": "https://github.com/shelbyd/kyber",
   "license": "MIT",
   "engines": {
     "atom": ">=1.0.0 <2.0.0"
   },
   "dependencies": {
+    "htm": "^3.1.1",
+    "react": "18.1.0",
+    "react-dom": "^18.1.0"
   }
 }
