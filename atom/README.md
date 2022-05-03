@@ -1,4 +1,4 @@
-# atom package
+# kyber package
 
 A short description of your package.
 

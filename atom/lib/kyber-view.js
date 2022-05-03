@@ -1,15 +1,15 @@
 'use babel';
 
-export default class AtomView {
+export default class KyberView {
 
   constructor(serializedState) {
     // Create root element
     this.element = document.createElement('div');
-    this.element.classList.add('atom');
+    this.element.classList.add('kyber');
 
     // Create message element
     const message = document.createElement('div');
-    message.textContent = 'The Atom package is Alive! It\'s ALIVE!';
+    message.textContent = 'The Kyber package is Alive! It\'s ALIVE!';
     message.classList.add('message');
     this.element.appendChild(message);
   }

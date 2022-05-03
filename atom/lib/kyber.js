@@ -1,18 +1,18 @@
 'use babel';
 
-import AtomView from './atom-view';
+import KyberView from './kyber-view';
 import { CompositeDisposable } from 'atom';
 
 export default {
 
-  atomView: null,
+  kyberView: null,
   modalPanel: null,
   subscriptions: null,
 
   activate(state) {
-    this.atomView = new AtomView(state.atomViewState);
+    this.kyberView = new KyberView(state.kyberViewState);
     this.modalPanel = atom.workspace.addModalPanel({
-      item: this.atomView.getElement(),
+      item: this.kyberView.getElement(),
       visible: false
     });
 
@@ -21,24 +21,24 @@ export default {
 
     // Register command that toggles this view
     this.subscriptions.add(atom.commands.add('atom-workspace', {
-      'atom:toggle': () => this.toggle()
+      'kyber:toggle': () => this.toggle()
     }));
   },
 
   deactivate() {
     this.modalPanel.destroy();
     this.subscriptions.dispose();
-    this.atomView.destroy();
+    this.kyberView.destroy();
   },
 
   serialize() {
     return {
-      atomViewState: this.atomView.serialize()
+      kyberViewState: this.kyberView.serialize()
     };
   },
 
   toggle() {
-    console.log('Atom was toggled!');
+    console.log('Kyber was toggled!');
     return (
       this.modalPanel.isVisible() ?
       this.modalPanel.hide() :

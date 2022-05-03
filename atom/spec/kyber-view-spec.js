@@ -1,8 +1,8 @@
 'use babel';
 
-import AtomView from '../lib/atom-view';
+import KyberView from '../lib/kyber-view';
 
-describe('AtomView', () => {
+describe('KyberView', () => {
   it('has one valid test', () => {
     expect('life').toBe('easy');
   });
