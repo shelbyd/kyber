@@ -8,6 +8,13 @@ export default {
   panel: null,
   subscriptions: null,
 
+  config: {
+    kyberCliPath: {
+      type: 'string',
+      default: 'kyber',
+    },
+  },
+
   activate(state) {
     this.kyberView = new KyberView(state.kyberViewState);
 
