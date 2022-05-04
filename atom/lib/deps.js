@@ -1,5 +1,5 @@
 const React = require('react');
-const ReactDOM = require('react-dom');
+const ReactDOM = require('react-dom/client');
 const htm = require('htm');
 
 const html = htm.bind(React.createElement);
