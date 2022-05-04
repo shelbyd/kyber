@@ -39,6 +39,7 @@ function App() {
   const updateSuggestions = async () => {
     const context = await buildKyberContext();
     const suggestions = await retrieveSuggestions(context);
+    console.log({suggestions});
     setSuggestions(suggestions);
   };
 
@@ -90,10 +91,14 @@ async function retrieveSuggestions(context) {
   const kyberCommand = atom.config.get('kyber.kyberCliPath');
   const promise = exec(`${kyberCommand} rpc suggest`);
 
-  promise.child.stdin.write(JSON.stringify(context));
+  promise.child.stdin.write(JSON.stringify({context}));
   promise.child.stdin.end();
 
-  const { stdout } = await promise;
+  const { stdout, stderr } = await promise;
+
+  if (stderr != '') {
+    console.log(stderr);
+  }
 
   return JSON.parse(stdout).suggestions;
 }
