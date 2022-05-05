@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
+mod refactorings;
+
 #[derive(StructOpt, Debug)]
 struct Options {
     #[structopt(subcommand)]
@@ -44,22 +46,37 @@ struct SuggestResponse {
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
-struct EditorContext {
+pub struct EditorContext {
     contents: Vec<ContentRegion>,
+}
+
+impl EditorContext {
+    pub fn contents_ref(&self) -> Vec<ContentRegion<&str>> {
+        self.contents
+            .iter()
+            .map(|c| ContentRegion {
+                text: c.text.as_str(),
+                selected: c.selected,
+            })
+            .collect()
+    }
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
-struct ContentRegion {
-    text: String,
+pub struct ContentRegion<S = String> {
+    text: S,
     selected: bool,
 }
 
 fn suggestions_for_context(_context: &EditorContext) -> Vec<Refactoring> {
-    vec![Refactoring {
-        name: "Extract ! from !=".to_string(),
-        description: "Replace a != b with !(a == b)".to_string(),
-    }]
+    refactorings::all()
+        .filter(|r| r.applies_to(_context))
+        .map(|r| Refactoring {
+            name: r.name(),
+            description: r.description(),
+        })
+        .collect()
 }
 
 #[derive(Serialize, Debug)]
