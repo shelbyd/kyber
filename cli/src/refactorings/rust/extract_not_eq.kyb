@@ -1,11 +1,9 @@
-import { expr, space } from "rust";
-
 @name = "Extract ! from !=";
 @description = "Replace `a != b` with `!(a == b)`";
 
 let region =
-    a:(expr() .. space()) ..
+    a:(/[\w_]+/ .. /\s+/) ..
     "!=" ..
-    b:(space() .. expr());
+    b:(/\s+/ .. /[\w_]+/);
 
 region.replace("!(" .. region.a .. "==" .. region.b .. ")");

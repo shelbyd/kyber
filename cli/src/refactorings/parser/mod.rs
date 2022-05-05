@@ -17,6 +17,7 @@ pub fn parse(s: &str) -> Result<Script> {
     Ok(Script::new(top_levels))
 }
 
+#[derive(Debug)]
 pub enum TopLevel {
     Import(Import),
     Directive(Directive),
@@ -24,16 +25,19 @@ pub enum TopLevel {
     Expr(Expr),
 }
 
+#[derive(Debug)]
 pub struct Import {
-    idents: Vec<String>,
-    source: String,
+    pub idents: Vec<String>,
+    pub source: String,
 }
 
+#[derive(Debug)]
 pub struct Directive {
-    name: String,
-    value: String,
+    pub name: String,
+    pub value: String,
 }
 
+#[derive(Debug)]
 pub enum Expr {
     Binding(String, Box<Expr>),
     DotAccess(Box<Expr>, String),
@@ -41,6 +45,7 @@ pub enum Expr {
 
     Ident(String),
     StringLiteral(String),
+    Regex(regex::Regex),
 
     Concatenate(Box<Expr>, Box<Expr>),
 }
@@ -125,7 +130,7 @@ fn binding_expr(t: &mut Tokens) -> Result<Expr> {
         let binding = take_ident(t)?;
         take(t, Token::Colon)?;
 
-        let expr = expr(t)?;
+        let expr = fn_expr(t)?;
         return Ok(Expr::Binding(binding, expr.into()));
     }
 
@@ -168,6 +173,9 @@ fn paren_expr(t: &mut Tokens) -> Result<Expr> {
 fn leaf_expr(t: &mut Tokens) -> Result<Expr> {
     match t.pop_front() {
         Some(Token::StringLiteral(s)) => Ok(Expr::StringLiteral(s)),
+        Some(Token::Regex(s)) => Ok(Expr::Regex(
+            regex::Regex::new(&s).map_err(|e| e.to_string())?,
+        )),
         Some(Token::Ident(i)) => Ok(Expr::Ident(i)),
 
         None => Err(format!("Expected expr, found EOF")),

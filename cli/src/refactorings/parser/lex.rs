@@ -54,6 +54,8 @@ pub enum Token {
 
     #[regex("\"[^\"]*\"", |lex| lex.slice()[1..(lex.slice().len()-1)].to_string())]
     StringLiteral(String),
+    #[regex("/[^/]+/", |lex| lex.slice()[1..(lex.slice().len()-1)].to_string())]
+    Regex(String),
 
     #[token("@")]
     Directive,
