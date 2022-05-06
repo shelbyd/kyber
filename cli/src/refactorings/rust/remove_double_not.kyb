@@ -1,0 +1,6 @@
+@id = "remove_double_not";
+@name = "Remove double not";
+@description = "Replace `!!expr` with `expr`";
+
+let region = find("!!" .. expr:(/[\w_]+/));
+region.replace(region.expr);

@@ -1,0 +1,7 @@
+@id = "replace_eq_false";
+@name = "Replace == false";
+@description = "Replace `a == false` with `!a`";
+
+let region = find(a:(/[\w_]+/) .. /\s+/ ..  "==" ..  /\s+/ .. "false");
+
+region.replace("!" .. region.a .. ")");

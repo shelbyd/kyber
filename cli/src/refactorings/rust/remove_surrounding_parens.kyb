@@ -1,0 +1,6 @@
+@id = "remove_surrounding_parens";
+@name = "Remove parens";
+@description = "Replace `(expr)` with `expr`";
+
+let region = find("(" .. expr:(/[^\)]+/) .. ")");
+region.replace(region.expr);

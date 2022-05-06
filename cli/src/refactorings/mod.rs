@@ -14,10 +14,15 @@ pub trait Refactoring {
     fn description(&self) -> String;
 }
 
-const EXTRACT_NOT_EQ: &str = include_str!("./rust/extract_not_eq.kyb");
-
 pub fn all() -> impl Iterator<Item = Box<dyn Refactoring>> {
-    [Box::new(parser::parse(EXTRACT_NOT_EQ).unwrap()) as Box<dyn Refactoring>].into_iter()
+    [
+        include_str!("./rust/extract_not_eq.kyb"),
+        include_str!("./rust/replace_eq_false.kyb"),
+        include_str!("./rust/remove_surrounding_parens.kyb"),
+        include_str!("./rust/remove_double_not.kyb"),
+    ]
+        .into_iter()
+        .map(|s| Box::new(parser::parse(s).unwrap()) as Box<dyn Refactoring>)
 }
 
 #[derive(Serialize, Debug, PartialEq, Eq, Clone)]

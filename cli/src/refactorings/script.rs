@@ -429,9 +429,7 @@ mod tests {
 
         #[test]
         fn multiple_occurrences() {
-            let script =
-                parse(r#"let region = find("r"); region.replace("t");"#)
-                    .unwrap();
+            let script = parse(r#"let region = find("r"); region.replace("t");"#).unwrap();
 
             assert_eq!(
                 script.perform(&context(&["rrr", "", "r"])).unwrap(),
