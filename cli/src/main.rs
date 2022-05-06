@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
 mod refactorings;
+use refactorings::Mutation;
 
 #[derive(StructOpt, Debug)]
 struct Options {
@@ -17,6 +18,7 @@ enum Command {
 #[derive(StructOpt, Debug)]
 enum RpcMethod {
     Suggest,
+    Perform,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -27,6 +29,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let request: SuggestRequest = serde_json::from_reader(std::io::stdin())?;
             let suggestions = suggestions_for_context(&request.context);
             serde_json::to_writer(std::io::stdout(), &SuggestResponse { suggestions })?;
+        }
+        Command::Rpc(RpcMethod::Perform) => {
+            let request: PerformRequest = serde_json::from_reader(std::io::stdin())?;
+            let refactoring = refactorings::all()
+                .find(|r| r.id() == request.id)
+                .ok_or_else(|| format!("Could not find refactoring with id {}", request.id))?;
+            let mutations = refactoring.perform(&request.context)?;
+            serde_json::to_writer(std::io::stdout(), &PerformResponse { mutations })?;
         }
     }
 
@@ -42,6 +52,18 @@ struct SuggestRequest {
 #[derive(Serialize, Debug)]
 struct SuggestResponse {
     suggestions: Vec<Refactoring>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
+struct PerformRequest {
+    context: EditorContext,
+    id: String,
+}
+
+#[derive(Serialize, Debug)]
+struct PerformResponse {
+    mutations: Vec<Mutation>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -75,6 +97,7 @@ fn suggestions_for_context(_context: &EditorContext) -> Vec<Refactoring> {
         .map(|r| Refactoring {
             name: r.name(),
             description: r.description(),
+            id: r.id(),
         })
         .collect()
 }
@@ -83,4 +106,5 @@ fn suggestions_for_context(_context: &EditorContext) -> Vec<Refactoring> {
 struct Refactoring {
     name: String,
     description: String,
+    id: String,
 }

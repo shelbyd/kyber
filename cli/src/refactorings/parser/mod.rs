@@ -41,7 +41,8 @@ pub struct Directive {
 pub enum Expr {
     Binding(String, Box<Expr>),
     DotAccess(Box<Expr>, String),
-    FnCall(Box<Expr>, Vec<Expr>),
+    FnCall(String, Vec<Expr>),
+    MethodCall(Box<Expr>, String, Vec<Expr>),
 
     Ident(String),
     StringLiteral(String),
@@ -138,15 +139,15 @@ fn binding_expr(t: &mut Tokens) -> Result<Expr> {
 }
 
 fn fn_expr(t: &mut Tokens) -> Result<Expr> {
-    let on = dot_access_expr(t)?;
+    if let (Some(Token::Ident(_)), Some(Token::OpenParen)) = (t.get(0), t.get(1)) {
+        let var = take_ident(t)?;
+        take(t, Token::OpenParen)?;
+        let args = take_until(t, Token::CloseParen, Token::Comma, |t| expr(t))?;
 
-    if !try_take(t, &Token::OpenParen) {
-        return Ok(on);
+        return Ok(Expr::FnCall(var.to_string(), args));
     }
 
-    let exprs = take_until(t, Token::CloseParen, Token::Comma, |t| expr(t))?;
-
-    Ok(Expr::FnCall(on.into(), exprs))
+    dot_access_expr(t)
 }
 
 fn dot_access_expr(t: &mut Tokens) -> Result<Expr> {
@@ -157,7 +158,13 @@ fn dot_access_expr(t: &mut Tokens) -> Result<Expr> {
     }
 
     let prop = take_ident(t)?;
-    Ok(Expr::DotAccess(obj.into(), prop))
+
+    if !try_take(t, &Token::OpenParen) {
+        return Ok(Expr::DotAccess(obj.into(), prop));
+    }
+
+    let args = take_until(t, Token::CloseParen, Token::Comma, |t| expr(t))?;
+    Ok(Expr::MethodCall(obj.into(), prop, args))
 }
 
 fn paren_expr(t: &mut Tokens) -> Result<Expr> {

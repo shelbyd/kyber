@@ -23,10 +23,14 @@ export default class KyberView {
   }
 }
 
+let performingMutations = false;
+
 const Container = styled.div`
   display: flex;
   flex-direction: column;
   align-items: stretch;
+
+  width: 320px;
 
   .empty {
     padding: 8px;
@@ -37,9 +41,9 @@ function App() {
   const [suggestions, setSuggestions] = useState([]);
 
   const updateSuggestions = async () => {
+    if (performingMutations) return;
     const context = await buildKyberContext();
     const suggestions = await retrieveSuggestions(context);
-    console.log({suggestions});
     setSuggestions(suggestions);
   };
 
@@ -47,7 +51,7 @@ function App() {
     const editor = atom.workspace.getActiveTextEditor();
 
     editor.onDidChangeCursorPosition(updateSuggestions);
-
+    editor.onDidChange(updateSuggestions);
     updateSuggestions();
   }, []);
 
@@ -85,22 +89,55 @@ async function buildKyberContext() {
 }
 
 async function retrieveSuggestions(context) {
-  const util = require('util');
-  const exec = util.promisify(require('child_process').exec);
+  return (await doRpc("suggest", { context })).suggestions;
+}
 
-  const kyberCommand = atom.config.get('kyber.kyberCliPath');
-  const promise = exec(`${kyberCommand} rpc suggest`);
+async function doRpc(rpc, input) {
+  const timer = `rpc.${rpc}`;
+  console.time(timer);
 
-  promise.child.stdin.write(JSON.stringify({context}));
-  promise.child.stdin.end();
+  const kyberCommand = atom.config.get("kyber.kyberCliPath");
 
-  const { stdout, stderr } = await promise;
+  const { stdout, stderr } = await execCommand(`${kyberCommand} rpc ${rpc}`, JSON.stringify(input));
 
-  if (stderr != '') {
+  if (stderr != "") {
     console.log(stderr);
   }
 
-  return JSON.parse(stdout).suggestions;
+  console.timeEnd(timer);
+  return JSON.parse(stdout);
+}
+
+async function execCommand(command, stdin) {
+  const {exec} = require("child_process");
+
+  const child = exec(command);
+
+  return await new Promise((resolve, reject) => {
+    let stdout = "";
+    child.stdout.on('data', (s) => {
+      stdout += s;
+    });
+
+    let stderr = "";
+    child.stderr.on('data', (s) => {
+      stderr += s;
+    });
+
+    child.on('exit', (code, signal) => {
+      if (code == 0) {
+        resolve({stdout, stderr});
+      } else {
+        reject(stderr);
+      }
+    });
+
+    child.stdin.write(stdin);
+    child.stdin.end();
+
+    // child.stdin won't actually write without spawning another process, so we spawn the simplest one.
+    exec('echo "ffs Node"');
+  });
 }
 
 const SuggestionContainer = styled.div`
@@ -121,14 +158,31 @@ function Suggestion({ suggestion }) {
   `;
 }
 
-function applySuggestion(suggestion) {
-  return;
+async function applySuggestion(suggestion) {
+  const context = await buildKyberContext();
+  const result = await doRpc("perform", { context, id: suggestion.id });
 
-  // Will use code like the following:
-  // const editor = atom.workspace.getActiveTextEditor();
-  // editor.transact(0, () => {
-  //   editor.backspace();
-  //   editor.delete();
-  //   editor.insertText("==");
-  // });
+  const editor = atom.workspace.getActiveTextEditor();
+  editor.transact(0, () => {
+    performingMutations = true;
+    for (const mutation of result.mutations) {
+      if (mutation.delete != null) {
+        times(mutation.delete, () => editor.delete());
+      } else if (mutation.backspace != null) {
+        times(mutation.backspace, () => editor.backspace());
+      } else if (mutation.insert != null) {
+        editor.insertText(mutation.insert);
+      } else {
+        console.error({mutation});
+        throw new Error(`Unrecognized mutation`);
+      }
+    }
+    performingMutations = false;
+  });
+}
+
+function times(count, fn) {
+  for (let i = 0; i < count; i++) {
+    fn();
+  }
 }
