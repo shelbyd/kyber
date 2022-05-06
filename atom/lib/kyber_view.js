@@ -93,9 +93,6 @@ async function retrieveSuggestions(context) {
 }
 
 async function doRpc(rpc, input) {
-  const timer = `rpc.${rpc}`;
-  console.time(timer);
-
   const kyberCommand = atom.config.get("kyber.kyberCliPath");
 
   const { stdout, stderr } = await execCommand(`${kyberCommand} rpc ${rpc}`, JSON.stringify(input));
@@ -103,8 +100,6 @@ async function doRpc(rpc, input) {
   if (stderr != "") {
     console.log(stderr);
   }
-
-  console.timeEnd(timer);
   return JSON.parse(stdout);
 }
 
