@@ -26,6 +26,10 @@ pub enum Token {
     From,
     #[token("let")]
     Let,
+    #[token("for")]
+    For,
+    #[token("in")]
+    In,
 
     #[token("{")]
     OpenBrace,

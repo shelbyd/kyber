@@ -4,6 +4,7 @@ use crate::{
 };
 use std::{collections::*, ops::Range};
 
+#[derive(Debug)]
 pub struct Script {
     top_levels: Vec<TopLevel>,
 }
@@ -52,11 +53,11 @@ impl Script {
 
         for tl in &self.top_levels {
             match tl {
-                TopLevel::Assignment(ident, expr) => {
+                TopLevel::Stmt(Stmt::Assignment(ident, expr)) => {
                     scope.insert(ident.to_string(), self.eval(expr, &scope, context)?);
                 }
 
-                TopLevel::Expr(e) => match self.eval(e, &mut scope, context)? {
+                TopLevel::Stmt(Stmt::Expr(e)) => match self.eval(e, &mut scope, context)? {
                     Value::Mutations(m) => result.extend(m),
                     _ => {}
                 },

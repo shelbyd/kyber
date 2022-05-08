@@ -20,6 +20,7 @@ pub fn all() -> impl Iterator<Item = Box<dyn Refactoring>> {
         include_str!("./rust/replace_eq_false.kyb"),
         include_str!("./rust/remove_surrounding_parens.kyb"),
         include_str!("./rust/remove_double_not.kyb"),
+        include_str!("./rust/rename_symbol.kyb"),
     ]
     .into_iter()
     .map(|s| Box::new(parser::parse(s).unwrap()) as Box<dyn Refactoring>)

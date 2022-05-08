@@ -21,8 +21,7 @@ pub fn parse(s: &str) -> Result<Script> {
 pub enum TopLevel {
     Import(Import),
     Directive(Directive),
-    Assignment(String, Expr),
-    Expr(Expr),
+    Stmt(Stmt),
 }
 
 #[derive(Debug)]
@@ -35,6 +34,13 @@ pub struct Import {
 pub struct Directive {
     pub name: String,
     pub value: String,
+}
+
+#[derive(Debug)]
+pub enum Stmt {
+    ForLoop(String, Expr, Vec<Stmt>),
+    Expr(Expr),
+    Assignment(String, Expr),
 }
 
 #[derive(Debug)]
@@ -51,6 +57,15 @@ pub enum Expr {
     Concatenate(Box<Expr>, Box<Expr>),
 }
 
+impl Stmt {
+    fn requires_terminal(&self) -> bool {
+        match self {
+            Stmt::ForLoop(_, _, _) => false,
+            Stmt::Expr(_) | Stmt::Assignment(_, _) => true,
+        }
+    }
+}
+
 fn top_level(t: &mut Tokens) -> Result<Option<TopLevel>> {
     match t.pop_front() {
         None => Ok(None),
@@ -58,20 +73,14 @@ fn top_level(t: &mut Tokens) -> Result<Option<TopLevel>> {
         Some(Token::Import) => Ok(Some(TopLevel::Import(import(t)?))),
         Some(Token::Directive) => Ok(Some(TopLevel::Directive(directive(t)?))),
 
-        Some(Token::Let) => {
-            let ident = take_ident(t)?;
-            take(t, Token::Equal)?;
-            let value = expr(t)?;
-            take(t, Token::SemiColon)?;
-            Ok(Some(TopLevel::Assignment(ident, value)))
-        }
+        Some(unhandled) => {
+            t.push_front(unhandled);
 
-        Some(unexpected) => {
-            t.push_front(unexpected.clone());
-
-            let e = expr(t)?;
-            take(t, Token::SemiColon)?;
-            Ok(Some(TopLevel::Expr(e)))
+            let s = stmt(t)?;
+            if s.requires_terminal() {
+                take(t, Token::SemiColon)?;
+            }
+            Ok(Some(TopLevel::Stmt(s)))
         }
     }
 }
@@ -107,15 +116,18 @@ macro_rules! impl_infix_parser {
         fn $name(t: &mut Tokens) -> Result<Expr> {
             let mut e = $next(t)?;
             loop {
-                match take_any(t)? {
-                    $($token => {
+                match t.pop_front() {
+                    $(Some($token) => {
                         let e2 = $next(t)?;
                         e = Expr::$expr(e.into(), e2.into());
                     })*
-                    token => {
+                    Some(token) => {
                         t.push_front(token);
                         return Ok(e);
                     },
+                    None => {
+                        return Ok(e);
+                    }
                 }
             }
         }
@@ -151,20 +163,21 @@ fn fn_expr(t: &mut Tokens) -> Result<Expr> {
 }
 
 fn dot_access_expr(t: &mut Tokens) -> Result<Expr> {
-    let obj = paren_expr(t)?;
+    let mut e = paren_expr(t)?;
 
-    if !try_take(t, &Token::Period) {
-        return Ok(obj);
+    loop {
+        if !try_take(t, &Token::Period) {
+            return Ok(e);
+        }
+
+        let prop = take_ident(t)?;
+        if try_take(t, &Token::OpenParen) {
+            let args = take_until(t, Token::CloseParen, Token::Comma, |t| expr(t))?;
+            return Ok(Expr::MethodCall(e.into(), prop, args));
+        }
+
+        e = Expr::DotAccess(e.into(), prop);
     }
-
-    let prop = take_ident(t)?;
-
-    if !try_take(t, &Token::OpenParen) {
-        return Ok(Expr::DotAccess(obj.into(), prop));
-    }
-
-    let args = take_until(t, Token::CloseParen, Token::Comma, |t| expr(t))?;
-    Ok(Expr::MethodCall(obj.into(), prop, args))
 }
 
 fn paren_expr(t: &mut Tokens) -> Result<Expr> {
@@ -187,6 +200,38 @@ fn leaf_expr(t: &mut Tokens) -> Result<Expr> {
 
         None => Err(format!("Expected expr, found EOF")),
         Some(unexpected) => Err(format!("Expected expr, found {:?}", unexpected)),
+    }
+}
+
+fn body(t: &mut Tokens) -> Result<Vec<Stmt>> {
+    take(t, Token::OpenBrace)?;
+    let stmts = take_until(t, Token::CloseBrace, Token::SemiColon, |t| stmt(t))?;
+    Ok(stmts)
+}
+
+fn stmt(t: &mut Tokens) -> Result<Stmt> {
+    match take_any(t)? {
+        Token::Let => {
+            let ident = take_ident(t)?;
+            take(t, Token::Equal)?;
+            let value = expr(t)?;
+            Ok(Stmt::Assignment(ident, value))
+        }
+
+        Token::For => {
+            let ident = take_ident(t)?;
+            take(t, Token::In)?;
+            let e = expr(t)?;
+            let body = body(t)?;
+            Ok(Stmt::ForLoop(ident, e, body))
+        }
+
+        unhandled => {
+            t.push_front(unhandled);
+
+            let e = expr(t)?;
+            Ok(Stmt::Expr(e))
+        }
     }
 }
 
@@ -273,4 +318,29 @@ fn take_until<T>(
         break;
     }
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chained_dot_access() {
+        parse("foo.bar.baz;").unwrap();
+    }
+
+    #[test]
+    fn method_call() {
+        parse("foo.bar();").unwrap();
+    }
+
+    #[test]
+    fn no_semicolon_after_for() {
+        parse("for foo in bar() {}").unwrap();
+    }
+
+    #[test]
+    fn requires_semicolon_after_expr_as_stmt() {
+        parse("foo()").unwrap_err();
+    }
 }

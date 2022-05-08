@@ -1,0 +1,12 @@
+@id = "rename_symbol";
+@name = "Rename symbol";
+@description = "Replace all instances of symbol";
+
+let br = /[^\w_]/;
+let replace_with = input_string("replace_with", "Replace with");
+
+let to_replace = find_selected(br .. sym:/[\w_]+/ .. br);
+
+for region in find_in_file(br .. sym:to_replace.sym .. br) {
+  region.sym.replace(replace_with);
+}
